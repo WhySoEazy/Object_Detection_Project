@@ -13,6 +13,8 @@ import os
 import shutil
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
+from torchmetrics.detection import MeanAveragePrecision
+torch.multiprocessing.set_sharing_strategy("file_system")
 
 def get_args():
     parse = ArgumentParser(description="FasterRCNN Training")
@@ -135,10 +137,39 @@ def train():
             writer.add_scalar("Train/Loss" , mean_train_loss , epoch * num_iters + iter)
 
         #validation phase
-        # model.eval()
-        # progress_bar = tqdm(val_dataloader)
-        # val_loss = []
-        # for iter , (images , labels) in enumerate(progress_bar):
+        model.eval()
+        progress_bar = tqdm(val_dataloader)
+        metric = MeanAveragePrecision(iou_type='bbox')
+        val_loss = []
+        for iter , (images , labels) in enumerate(progress_bar):
+            images = [image.to(device) for image in images]
+            with torch.no_grad():
+                outputs = model(images)
+
+            preds = []
+
+            for output in outputs:
+                preds.append({
+                    "boxes": output["boxes"].to("cpu"),
+                    "scores": output["scores"].to("cpu"),
+                    "labels": output["labels"].to("cpu")
+                })
+
+            targets = []
+
+            for label in labels:
+                targets.append({
+                    "boxes": label["boxes"],
+                    "labels": label["labels"]
+                })
+
+            metric.update(preds,targets)
+
+        result = metric.compute()
+        pprint(result)
+        writer.add_scalar("Val/mAP" , result["map"] , epoch)
+        writer.add_scalar("Val/mAP50" , result["map_50"] , epoch)
+        writer.add_scalar("Val/mAP_75" , result["map_75"] , epoch)
 
 if __name__ == "__main__":
     args = get_args()
