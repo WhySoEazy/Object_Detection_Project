@@ -1,7 +1,7 @@
 import torch
 from torch.optim import SGD
 from torchvision.datasets import VOCDetection
-from torchvision.transforms import ToTensor , Compose , Resize
+from torchvision.transforms import ToTensor , Compose , Resize , Normalize , RandomAffine , ColorJitter
 from pprint import pprint
 from VOC_Dataset import MyVOC
 from torchvision.models.detection import fasterrcnn_mobilenet_v3_large_fpn , FasterRCNN_MobileNet_V3_Large_FPN_Weights
@@ -63,17 +63,35 @@ def collate_fn(batch):
     images , labels = zip(*batch)
     return list(images) , list(labels)
 
-def train():
+def train(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
     num_epoch = args.epochs
     batch_size = args.batchs 
-    transform = ToTensor()
+
+    train_transform = Compose([
+        ToTensor(),
+        RandomAffine(
+            degrees=(-5 , 5),
+            translate=(0.05 , 0.05),
+            scale=(0.85 , 1.15),
+            shear=5
+        ),
+        ColorJitter(
+            brightness=0.125,  
+            contrast=0.5,   
+            saturation=0.25,  
+            hue=0.5
+        )
+    ])
+
+    valid_transform = ToTensor()
+
     train_dataset = MyVOC(root=args.data_path , 
                     year="2012", 
                     image_set="train", 
                     download=False,
-                    transform=transform)
+                    transform=train_transform)
 
 
     train_dataloader = DataLoader(
@@ -88,7 +106,7 @@ def train():
                     year="2012", 
                     image_set="val", 
                     download=False,
-                    transform=transform)
+                    transform=valid_transform)
 
 
     val_dataloader = DataLoader(
@@ -99,32 +117,50 @@ def train():
         collate_fn=collate_fn
     )
 
-    model = fasterrcnn_mobilenet_v3_large_fpn(weights = FasterRCNN_MobileNet_V3_Large_FPN_Weights.DEFAULT)
+    model = fasterrcnn_mobilenet_v3_large_fpn(weights = FasterRCNN_MobileNet_V3_Large_FPN_Weights.DEFAULT ,
+                                              trainable_backbone_layers = 0)
     in_channels = model.roi_heads.box_predictor.cls_score.in_features
     model.roi_heads.box_predictor = FastRCNNPredictor(in_channels=in_channels , num_classes=len(train_dataset.categories))
-    model.to(device)
     optimizer = SGD(params=model.parameters() , lr=args.lr , momentum=args.momentum)
+
+    if args.checkpoint:
+        checkpoint = torch.load(args.checkpoint , map_location=lambda storage , loc:"cpu")
+        model.load_state_dict(checkpoint['model'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        best_map = checkpoint["best_map"]
+        start_epoch = checkpoint['epoch']
+    else:
+        start_epoch = 0
+        best_map = 0
+
+    model.to(device)
+
+    best_map = 0
 
     if os.path.isdir(args.logging):
         shutil.rmtree(args.logging , ignore_errors=True)
+
+    if not os.path.isdir(args.trained_model):
+            os.mkdir(args.trained_model)
 
     writer = SummaryWriter(args.logging)
 
     num_iters = len(train_dataloader)
     
-    for epoch in range(num_epoch):
-        #training phase
+    for epoch in range(start_epoch , start_epoch + num_epoch):
+        #TrainingPhase
         model.train()
         progress_bar = tqdm(train_dataloader)
         train_loss = []
         for iter , (images , labels) in enumerate(progress_bar):
-            #forward
+
+            #Forward
             images = [image.to(device) for image in images]
             labels = [{"boxes": target["boxes"].to(device) , "labels": target["labels"].to(device)} for target in labels]
             losses = model(images , labels)
             final_losses = sum([loss for loss in losses.values()])
 
-            #backward
+            #Backward
             optimizer.zero_grad()
             final_losses.backward()
             optimizer.step()
@@ -132,11 +168,11 @@ def train():
             train_loss.append(final_losses.item())
             mean_train_loss = np.mean(train_loss)
 
-            progress_bar.set_description("Epoch {}/{} , Loss {:0.4f}".format(epoch + 1 , num_epoch , mean_train_loss))
+            progress_bar.set_description("Epoch {}/{} , Loss {:0.4f}".format(epoch + 1 , num_epoch + start_epoch , mean_train_loss))
 
             writer.add_scalar("Train/Loss" , mean_train_loss , epoch * num_iters + iter)
 
-        #validation phase
+        #ValidationPhase
         model.eval()
         progress_bar = tqdm(val_dataloader)
         metric = MeanAveragePrecision(iou_type='bbox')
@@ -170,6 +206,23 @@ def train():
         writer.add_scalar("Val/mAP" , result["map"] , epoch)
         writer.add_scalar("Val/mAP50" , result["map_50"] , epoch)
         writer.add_scalar("Val/mAP_75" , result["map_75"] , epoch)
+
+        #SaveModel
+
+        if result["map"] > best_map:
+            best_map = result["map"]
+            torch.save(checkpoint, "{}/best.pt".format(args.trained_model))
+
+        checkpoint = {
+            "model": model.state_dict(),
+            "mAP": result["map"],
+            "epoch": epoch + 1,
+            "optimizer": optimizer.state_dict(),
+            "best_map": best_map
+        }
+        torch.save(checkpoint, "{}/last.pt".format(args.trained_model))
+
+        print("Best mAP: {}".format(best_map))
 
 if __name__ == "__main__":
     args = get_args()
