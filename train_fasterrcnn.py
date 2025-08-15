@@ -63,13 +63,13 @@ def collate_fn(batch):
     images , labels = zip(*batch)
     return list(images) , list(labels)
 
-def train(args):
+def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
     num_epoch = args.epochs
     batch_size = args.batchs 
 
-    train_transform = Compose([
+    transform = Compose([
         ToTensor(),
         RandomAffine(
             degrees=(-5 , 5),
@@ -85,14 +85,11 @@ def train(args):
         )
     ])
 
-    valid_transform = ToTensor()
-
     train_dataset = MyVOC(root=args.data_path , 
                     year="2012", 
                     image_set="train", 
                     download=False,
-                    transform=train_transform)
-
+                    transform=transform)
 
     train_dataloader = DataLoader(
         dataset=train_dataset,
@@ -106,7 +103,7 @@ def train(args):
                     year="2012", 
                     image_set="val", 
                     download=False,
-                    transform=valid_transform)
+                    transform=ToTensor())
 
 
     val_dataloader = DataLoader(
@@ -124,7 +121,7 @@ def train(args):
     optimizer = SGD(params=model.parameters() , lr=args.lr , momentum=args.momentum)
 
     if args.checkpoint:
-        checkpoint = torch.load(args.checkpoint , map_location=lambda storage , loc:"cpu")
+        checkpoint = torch.load(args.checkpoint)
         model.load_state_dict(checkpoint['model'])
         optimizer.load_state_dict(checkpoint['optimizer'])
         best_map = checkpoint["best_map"]
@@ -134,8 +131,6 @@ def train(args):
         best_map = 0
 
     model.to(device)
-
-    best_map = 0
 
     if os.path.isdir(args.logging):
         shutil.rmtree(args.logging , ignore_errors=True)
@@ -195,8 +190,8 @@ def train(args):
 
             for label in labels:
                 targets.append({
-                    "boxes": label["boxes"],
-                    "labels": label["labels"]
+                    "boxes": label["boxes"].to("cpu"),
+                    "labels": label["labels"].to("cpu")
                 })
 
             metric.update(preds,targets)
@@ -208,19 +203,22 @@ def train(args):
         writer.add_scalar("Val/mAP_75" , result["map_75"] , epoch)
 
         #SaveModel
-
         if result["map"] > best_map:
+            checkpoint = {
+                "best_map": best_map,
+                "model": model.state_dict(),
+                "optimizer": optimizer.state_dict()
+            }
+            torch.save(checkpoint, "{}/best_rcnn.pt".format(args.trained_model))
             best_map = result["map"]
-            torch.save(checkpoint, "{}/best.pt".format(args.trained_model))
 
         checkpoint = {
-            "model": model.state_dict(),
-            "mAP": result["map"],
             "epoch": epoch + 1,
-            "optimizer": optimizer.state_dict(),
-            "best_map": best_map
+            "best_map": best_map,
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict()
         }
-        torch.save(checkpoint, "{}/last.pt".format(args.trained_model))
+        torch.save(checkpoint, "{}/last_rcnn.pt".format(args.trained_model))
 
         print("Best mAP: {}".format(best_map))
 
