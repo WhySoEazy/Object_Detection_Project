@@ -190,8 +190,8 @@ def train():
 
             for label in labels:
                 targets.append({
-                    "boxes": label["boxes"].to("cpu"),
-                    "labels": label["labels"].to("cpu")
+                    "boxes": label["boxes"],
+                    "labels": label["labels"]
                 })
 
             metric.update(preds,targets)
