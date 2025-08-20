@@ -126,7 +126,7 @@ The result will be saved as `resultvideo.mp4`
 ## 📊 Loss and mAP Scores
 
 ### Loss Plot
-![Loss Plot](./result/loss.png)
+![Loss Plot](./result/Loss.png)
 
 ### mAP Scores
 ## mAP
