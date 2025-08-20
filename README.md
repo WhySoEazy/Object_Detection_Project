@@ -62,11 +62,12 @@ VOCdevkit/
 
 ## Quick start
 
-### 1) Train
+### 1. Train
 
 ```bash
-python train_fasterrcnn.py   --data-root /path/to/VOCdevkit/VOC2007   --epochs 20   --batch-size 4   --lr 5e-4   --num-workers 4   --output runs/exp1
+python train_fasterrcnn.py   --data_path /path/to/VOCdevkit/VOC2007   --epochs 100   --batchs 8   --lr 1e-3   --momentum 0.9
 ```
+You can add checkpoint as `--checkpoint trained_model/last_rcnn.pt` to continue the training loop if you had interupted.
 
 Launch TensorBoard:
 
@@ -74,11 +75,19 @@ Launch TensorBoard:
 tensorboard --logdir tensorboard
 ```
 
-### 2) Test / Inference
+### 2. Test / Inference
+#### For image
 
 ```bash
-python test_fasterrcnn.py   --weights /path/to/model_final.pth   --source /path/to/images_or_folder   --score-thr 0.5   --save-dir outputs/
+python test_fasterrcnn.py   --checkpoint trained_model/best_rcnn.pt   --image_path /path/to/images --threshold 0.5
 ```
+The result will be saved as `Prediction.jpg`
+#### For video
+
+```bash
+python test_fasterrcnn.py   --checkpoint trained_model/best_rcnn.pt   --video_path /path/to/video --threshold 0.5
+```
+The result will be saved as `resultvideo.mp4`
 
 ---
 
@@ -93,7 +102,7 @@ python test_fasterrcnn.py   --weights /path/to/model_final.pth   --source /path/
 
 ## Results
 
-- Example output: `Prediction.jpg`
+- Example output: `Prediction.jpg` for image and `resultvideo.mp4` for video.
 
 ---
 
@@ -113,7 +122,3 @@ python test_fasterrcnn.py   --weights /path/to/model_final.pth   --source /path/
 - [ ] Experiment tracking (wandb)
 
 ---
-
-## License
-
-No license file was found in this repository. Please add one (MIT, Apache-2.0, etc.) to clarify usage.
