@@ -122,3 +122,16 @@ The result will be saved as `resultvideo.mp4`
 - [ ] Experiment tracking (wandb)
 
 ---
+
+## 📊 Loss and mAP Scores
+
+### Loss Plot
+![Loss Plot](./result/loss.png)
+
+### mAP Scores
+## mAP
+![mAP Plot](./result/mAP.png)
+## mAP_50
+![mAP_50 Plot](./result/mAP_50.png)
+## mAP_75
+![mAP_75 Plot](./result/mAP_75.png)
