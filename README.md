@@ -20,9 +20,10 @@ A minimal, end-to-end object detection pipeline using **Faster R-CNN** in **PyTo
 .
 ├── VOC_Dataset.py            # Pascal VOC dataset handle
 ├── train_fasterrcnn.py       # Training (and validation) loop
-├── test_fasterrcnn.py        # Inference / evaluation script
+├── image_test_fasterrcnn.py  # Inference image testing script
+├── video_test_fasterrcnn.py  # Inference video testing script
 ├── tensorboard/              # (Created at runtime) TensorBoard runs
-└── Prediction.jpg            # Example prediction output
+└── Prediction.jpg            # Example predicted image output
 ```
 
 ---
@@ -79,13 +80,13 @@ tensorboard --logdir tensorboard
 #### For image
 
 ```bash
-python test_fasterrcnn.py   --checkpoint trained_model/best_rcnn.pt   --image_path /path/to/images --threshold 0.5
+python image_test_fasterrcnn.py   --checkpoint trained_model/best_rcnn.pt   --image_path /path/to/image --threshold 0.8
 ```
 The result will be saved as `Prediction.jpg`
 #### For video
 
 ```bash
-python test_fasterrcnn.py   --checkpoint trained_model/best_rcnn.pt   --video_path /path/to/video --threshold 0.5
+python video_test_fasterrcnn.py   --checkpoint trained_model/best_rcnn.pt   --video_path /path/to/video --threshold 0.8
 ```
 The result will be saved as `resultvideo.mp4`
 
